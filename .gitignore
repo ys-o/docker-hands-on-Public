@@ -77,3 +77,5 @@ php-sample/
 
 multi_stage_build/my-app/*
 !multi_stage_build/my-app/Dockerfile
+
+docker_compose/src/*.php
