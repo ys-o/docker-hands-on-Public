@@ -1,12 +1,70 @@
 services:
   webserver:
-    image: nginx:1.25.3-alpine
+    image: webapp-nginx:v0.1.0
+    build:
+      context: .
+      dockerfile: ./docker/nginx/Dockerfile
     ports:
       - "8080:80"
     volumes:
       - ./src/public:/var/www/html/public
-      - ./docker/nginx/conf/conf.d:/etc/nginx/conf.d
+      - php-socket:/var/run/php
+    depends_on:
+      app:
+        condition: service_healthy
   app:
-    image: php:8.3-fpm-alpine3.19
+    image: webapp-php:v0.1.0
+    build:
+      context: .
+      dockerfile: ./docker/php-fpm/Dockerfile
     volumes:
       - ./src:/var/www/html
+      - php-socket:/var/run/php
+    environment: 
+      DB_HOST: db
+      DB_NAME: mydatabase
+      DB_USER: user
+      DB_PASS: password
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "netstat -lx | grep php-fpm.sock || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 1s
+    networks:
+      - default
+      - network-oy-apdb
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: yes
+      MYSQL_DATABASE: mydatabase
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "13306:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-P", "3306"]
+      interval: 10s
+      timeout: 1s
+      retries: 5
+      start_period: 1s
+    networks:
+      - network-oy-apdb
+
+volumes:
+  db-data:
+  php-socket:
+
+networks:
+  default:
+    name: network-oy
+    driver: bridge
+  network-oy-apdb:
+    name: network-oy-apdb
+    driver: bridge
